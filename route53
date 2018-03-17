@@ -1,0 +1,14 @@
+{
+    "Location": "https://route53.amazonaws.com/2013-04-01/delegationset/N2GDCP8PWJKSOF",
+    "DelegationSet": {
+        "NameServers": [
+            "ns-1262.awsdns-29.org",
+            "ns-716.awsdns-25.net",
+            "ns-1623.awsdns-10.co.uk",
+            "ns-232.awsdns-29.com"
+        ],
+        "CallerReference": "7032",
+        "Id": "/delegationset/N2GDCP8PWJKSOF"
+    }
+}
+
