@@ -261,7 +261,8 @@ resource "aws_security_group" "wp_dev_sg" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["${var.localip}"]
+    #cidr_blocks = ["${var.localip}"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -303,8 +304,8 @@ resource "aws_security_group" "wp_private_sg" {
 
   # http
   ingress {
-    from_port   = 80
-    to_port     = 80
+    from_port   = 0
+    to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["${var.vpc_cidr}"]
   }
@@ -383,7 +384,7 @@ resource "aws_s3_bucket" "code" {
 resource "aws_db_instance" "wp_db" {
   allocated_storage      = 10
   engine                 = "mysql"
-  engine_version         = "5.6.27"
+  engine_version         = "5.6.29"
   instance_class         = "${var.db_instance_class}"
   name                   = "${var.dbname}"
   username               = "${var.dbuser}"
@@ -412,7 +413,7 @@ resource "aws_instance" "wp_dev" {
   key_name               = "${aws_key_pair.wp_auth.id}"
   vpc_security_group_ids = ["${aws_security_group.wp_dev_sg.id}"]
   iam_instance_profile   = "${aws_iam_instance_profile.s3_access_profile.id}"
-  subnet_id              = "{aws_subnet.wp_public1_subnet.id}"
+  subnet_id              = "${aws_subnet.wp_public1_subnet.id}"
 
   provisioner "local-exec" {
     command = <<EOD
@@ -421,6 +422,7 @@ cat <<EOF > aws_hosts
 ${aws_instance.wp_dev.public_ip}
 [dev:vars]
 s3code=${aws_s3_bucket.code.bucket}
+domain=${var.domain_name}
 EOF
 EOD
   }
@@ -471,7 +473,7 @@ resource "aws_elb" "wp_elb" {
 # random ami id
 
 resource "random_id" "golden_ami" {
-  byte_length = 3
+  byte_length = 8
 }
 
 resource "aws_ami_from_instance" "wp_golden" {
@@ -484,7 +486,7 @@ cat <<EOF > userdata
 #!/bin/bash
 /usr/bin/aws s3 sync s3://${aws_s3_bucket.code.bucket} /var/www/html/
 /bin/touch /var/spool/cron/root
-sudo /bin/echo '*/5 * * * * aws s3 sync s3 sync s3://${aws_s3_bucket.code.bucket} /var/www/html' >> /var/spool/cron/root
+sudo /bin/echo '*/5 * * * * aws s3 sync s3://${aws_s3_bucket.code.bucket} /var/www/html/' >> /var/spool/cron/root
 EOF
 EOT
   }
@@ -550,7 +552,7 @@ resource "aws_route53_zone" "primary" {
 ###WWW record
 
 resource "aws_route53_record" "www" {
-  zone_id = "${aws_route53_zone.primary.id}"
+  zone_id = "${aws_route53_zone.primary.zone_id}"
   name    = "www.${var.domain_name}.com"
   type    = "A"
 
@@ -571,18 +573,18 @@ resource "aws_route53_record" "dev" {
   records = ["${aws_instance.wp_dev.public_ip}"]
 }
 
-# Private Zone
+# Seconday Zone
 
 resource "aws_route53_zone" "secondary" {
   name   = "${var.domain_name}.com"
-  vpc_id = "{aws_vpc.wp_vpc.id}"
+  vpc_id = "${aws_vpc.wp_vpc.id}"
 }
 
 # DB record
 
 resource "aws_route53_record" "db" {
   zone_id = "${aws_route53_zone.secondary.zone_id}"
-  name    = "dev.${var.domain_name}.com"
+  name    = "db.${var.domain_name}.com"
   type    = "CNAME"
   ttl     = "300"
   records = ["${aws_db_instance.wp_db.address}"]
